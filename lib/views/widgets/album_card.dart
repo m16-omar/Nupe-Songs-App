@@ -54,8 +54,28 @@ class AlbumCard extends StatelessWidget {
                         color: coverBgColor,
                         child: album.artworkPath != null
                             ? (album.artworkPath!.startsWith('http')
-                                ? Image.network(album.artworkPath!, fit: BoxFit.cover)
-                                : Image.asset(album.artworkPath!, fit: BoxFit.cover))
+                                ? Image.network(
+                                    album.artworkPath!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => Center(
+                                      child: Icon(
+                                        Icons.album,
+                                        size: 40,
+                                        color: iconColor,
+                                      ),
+                                    ),
+                                  )
+                                : Image.asset(
+                                    album.artworkPath!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => Center(
+                                      child: Icon(
+                                        Icons.album,
+                                        size: 40,
+                                        color: iconColor,
+                                      ),
+                                    ),
+                                  ))
                             : Center(
                                 child: Icon(
                                   Icons.album,

@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../core/constants/api_constants.dart';
 import '../services/storage_service.dart';
 
 class AuthController extends ChangeNotifier {
   bool _isAuthenticated = false;
   bool _isGuest = false;
   bool _isLoading = false;
+  bool _isStaff = false;
   String? _userName;
   String? _userEmail;
   String? _token;
@@ -19,6 +21,7 @@ class AuthController extends ChangeNotifier {
   bool get isAuthenticated => _isAuthenticated;
   bool get isGuest => _isGuest;
   bool get isLoading => _isLoading;
+  bool get isStaff => _isStaff;
   String? get userName => _userName;
   String? get userEmail => _userEmail;
   String? get token => _token;
@@ -26,7 +29,7 @@ class AuthController extends ChangeNotifier {
 
   int _activePort = 8000;
 
-  String get baseUrl => 'http://${Platform.isAndroid ? '10.0.2.2' : '127.0.0.1'}:$_activePort/api';
+  String get baseUrl => ApiConstants.baseUrl;
 
   Future<void> _ensureStorage() async {
     if (!_isStorageInitialized) {
@@ -41,6 +44,39 @@ class AuthController extends ChangeNotifier {
     Map<String, String>? headers,
     Object? body,
   }) async {
+    final mergedHeaders = {
+      'Content-Type': 'application/json',
+      ...?headers,
+    };
+
+    if (ApiConstants.useLiveBackend) {
+      final uri = Uri.parse('${ApiConstants.baseUrl}$path');
+      final timeoutDuration = const Duration(seconds: 30);
+      try {
+        final http.Response response;
+        if (method == 'POST') {
+          response = await http.post(
+            uri,
+            headers: mergedHeaders,
+            body: body,
+          ).timeout(timeoutDuration);
+        } else if (method == 'GET') {
+          response = await http.get(
+            uri,
+            headers: mergedHeaders,
+          ).timeout(timeoutDuration);
+        } else {
+          throw UnsupportedError('Unsupported HTTP method: $method');
+        }
+        return response;
+      } catch (e) {
+        if (kDebugMode) {
+          print('Request error to live backend path $path: $e');
+        }
+        rethrow;
+      }
+    }
+
     final ports = [8000];
     
     // Prioritize currently active port
@@ -55,10 +91,6 @@ class AuthController extends ChangeNotifier {
 
       try {
         final http.Response response;
-        final mergedHeaders = {
-          'Content-Type': 'application/json',
-          ...?headers,
-        };
 
         if (method == 'POST') {
           response = await http.post(
@@ -141,12 +173,15 @@ class AuthController extends ChangeNotifier {
           _refreshToken = savedRefreshToken;
           _isAuthenticated = true;
           _isGuest = false;
-          _userName = data['username'] as String?;
+          _isStaff = data['is_staff'] as bool? ?? false;
+          _userName = data['full_name'] as String? ?? 
+              '${data['first_name'] ?? ''} ${data['last_name'] ?? ''}'.trim();
           _userEmail = data['email'] as String?;
           
           await _storage.setString('auth_username', _userName ?? '');
           await _storage.setString('auth_email', _userEmail ?? '');
           await _storage.setBool('auth_is_authenticated', true);
+          await _storage.setBool('auth_is_staff', _isStaff);
           if (kDebugMode) {
             print('tryAutoLogin: auto-login succeeded with saved token for $_userName');
           }
@@ -174,12 +209,15 @@ class AuthController extends ChangeNotifier {
               final data = json.decode(response.body);
               _isAuthenticated = true;
               _isGuest = false;
-              _userName = data['username'] as String?;
+              _isStaff = data['is_staff'] as bool? ?? false;
+              _userName = data['full_name'] as String? ?? 
+                  '${data['first_name'] ?? ''} ${data['last_name'] ?? ''}'.trim();
               _userEmail = data['email'] as String?;
               
               await _storage.setString('auth_username', _userName ?? '');
               await _storage.setString('auth_email', _userEmail ?? '');
               await _storage.setBool('auth_is_authenticated', true);
+              await _storage.setBool('auth_is_staff', _isStaff);
               if (kDebugMode) {
                 print('tryAutoLogin: auto-login succeeded after token refresh for $_userName');
               }
@@ -204,6 +242,7 @@ class AuthController extends ChangeNotifier {
         _refreshToken = savedRefreshToken;
         _isAuthenticated = true;
         _isGuest = false;
+        _isStaff = _storage.getBool('auth_is_staff', defaultValue: false);
         _userName = _storage.getString('auth_username') ?? 'User';
         _userEmail = _storage.getString('auth_email');
         if (kDebugMode) {
@@ -294,7 +333,9 @@ class AuthController extends ChangeNotifier {
           _refreshToken = refreshToken;
           _isAuthenticated = true;
           _isGuest = false;
-          _userName = meData['username'] as String?;
+          _isStaff = meData['is_staff'] as bool? ?? false;
+          _userName = meData['full_name'] as String? ??
+              '${meData['first_name'] ?? ''} ${meData['last_name'] ?? ''}'.trim();
           _userEmail = meData['email'] as String?;
           
           await _storage.setString('auth_token', accessToken);
@@ -303,6 +344,7 @@ class AuthController extends ChangeNotifier {
           await _storage.setString('auth_email', _userEmail ?? '');
           await _storage.setBool('auth_is_authenticated', true);
           await _storage.setBool('auth_is_guest', false);
+          await _storage.setBool('auth_is_staff', _isStaff);
 
           _isLoading = false;
           notifyListeners();
@@ -329,19 +371,18 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  Future<(bool, String?)> signup(String name, String email, String password) async {
+  Future<(bool, String?)> signup(String firstName, String lastName, String email, String password) async {
     _isLoading = true;
     notifyListeners();
     await _ensureStorage();
-
-    final sanitizedUsername = name.trim().replaceAll(' ', '_').replaceAll(RegExp(r'[^a-zA-Z0-9@\.\+\-_]'), '').toLowerCase();
 
     try {
       final response = await _sendRequest(
         'POST',
         '/auth/register',
         body: json.encode({
-          'username': sanitizedUsername,
+          'first_name': firstName.trim(),
+          'last_name': lastName.trim(),
           'email': email.trim(),
           'password': password,
         }),
@@ -349,8 +390,8 @@ class AuthController extends ChangeNotifier {
 
       if (response.statusCode == 201) {
         _isLoading = false;
-        // Automatically login using the username (sanitizedUsername) after successful registration
-        return await login(sanitizedUsername, password);
+        // Automatically login using email after successful registration
+        return await login(email.trim(), password);
       } else {
         final errorMsg = _parseErrorBody(response);
         _isLoading = false;
@@ -395,6 +436,7 @@ class AuthController extends ChangeNotifier {
     _refreshToken = null;
     _isAuthenticated = false;
     _isGuest = false;
+    _isStaff = false;
     _userName = null;
     _userEmail = null;
     await _storage.remove('auth_token');
@@ -403,6 +445,7 @@ class AuthController extends ChangeNotifier {
     await _storage.remove('auth_email');
     await _storage.remove('auth_is_guest');
     await _storage.remove('auth_is_authenticated');
+    await _storage.remove('auth_is_staff');
   }
 
   Future<(bool, String?)> sendPasswordResetEmail(String email) async {

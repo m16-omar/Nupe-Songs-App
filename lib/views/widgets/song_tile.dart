@@ -65,8 +65,24 @@ class SongTile extends StatelessWidget {
                 color: coverBgColor,
                 child: song.artworkPath != null
                     ? (song.artworkPath!.startsWith('http')
-                        ? Image.network(song.artworkPath!, fit: BoxFit.cover)
-                        : Image.asset(song.artworkPath!, fit: BoxFit.cover))
+                        ? Image.network(
+                            song.artworkPath!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              Icons.music_note,
+                              size: 24,
+                              color: iconColor,
+                            ),
+                          )
+                        : Image.asset(
+                            song.artworkPath!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              Icons.music_note,
+                              size: 24,
+                              color: iconColor,
+                            ),
+                          ))
                     : Icon(
                         Icons.music_note,
                         size: 24,

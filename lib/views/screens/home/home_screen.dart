@@ -11,6 +11,7 @@ import '../../../models/album_model.dart';
 import '../../../models/playlist_model.dart';
 import '../../../models/song_model.dart';
 import '../auth/auth_screen.dart';
+import '../admin/admin_downloads_screen.dart';
 import '../../widgets/song_tile.dart';
 import '../../widgets/mini_player.dart';
 import '../../widgets/album_card.dart';
@@ -1487,8 +1488,16 @@ class _SearchTabViewState extends State<_SearchTabView> {
                     borderRadius: BorderRadius.circular(8),
                     child: album.artworkPath != null && album.artworkPath!.isNotEmpty
                         ? (album.artworkPath!.startsWith('http')
-                            ? Image.network(album.artworkPath!, fit: BoxFit.cover)
-                            : Image.asset(album.artworkPath!, fit: BoxFit.cover))
+                            ? Image.network(
+                                album.artworkPath!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (ctx, err, _) => const Icon(Icons.album_rounded, size: 40, color: Colors.white24),
+                              )
+                            : Image.asset(
+                                album.artworkPath!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (ctx, err, _) => const Icon(Icons.album_rounded, size: 40, color: Colors.white24),
+                              ))
                         : const Icon(Icons.album_rounded, size: 40, color: Colors.white24),
                   ),
                 ),
@@ -1558,8 +1567,16 @@ class _SearchTabViewState extends State<_SearchTabView> {
                 color: coverBgColor,
                 child: artist.imagePath != null && artist.imagePath!.isNotEmpty
                     ? (artist.imagePath!.startsWith('http')
-                        ? Image.network(artist.imagePath!, fit: BoxFit.cover)
-                        : Image.asset(artist.imagePath!, fit: BoxFit.cover))
+                        ? Image.network(
+                            artist.imagePath!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, _) => const Icon(Icons.person_rounded, size: 24),
+                          )
+                        : Image.asset(
+                            artist.imagePath!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, _) => const Icon(Icons.person_rounded, size: 24),
+                          ))
                     : const Icon(Icons.person_rounded, size: 24),
               ),
             ),
@@ -1619,8 +1636,16 @@ class _SearchTabViewState extends State<_SearchTabView> {
                 color: coverBgColor,
                 child: album.artworkPath != null && album.artworkPath!.isNotEmpty
                     ? (album.artworkPath!.startsWith('http')
-                        ? Image.network(album.artworkPath!, fit: BoxFit.cover)
-                        : Image.asset(album.artworkPath!, fit: BoxFit.cover))
+                        ? Image.network(
+                            album.artworkPath!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, _) => const Icon(Icons.album_rounded, size: 24),
+                          )
+                        : Image.asset(
+                            album.artworkPath!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, _) => const Icon(Icons.album_rounded, size: 24),
+                          ))
                     : const Icon(Icons.album_rounded, size: 24),
               ),
             ),
@@ -2714,8 +2739,16 @@ class _LibraryTabViewState extends State<_LibraryTabView> {
                 color: coverBgColor,
                 child: album.artworkPath != null
                     ? (album.artworkPath!.startsWith('http')
-                        ? Image.network(album.artworkPath!, fit: BoxFit.cover)
-                        : Image.asset(album.artworkPath!, fit: BoxFit.cover))
+                        ? Image.network(
+                            album.artworkPath!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, _) => const Icon(Icons.album_rounded, size: 28),
+                          )
+                        : Image.asset(
+                            album.artworkPath!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, _) => const Icon(Icons.album_rounded, size: 28),
+                          ))
                     : const Icon(Icons.album_rounded, size: 28),
               ),
             ),
@@ -2776,8 +2809,16 @@ class _LibraryTabViewState extends State<_LibraryTabView> {
                 color: coverBgColor,
                 child: artist.imagePath != null
                     ? (artist.imagePath!.startsWith('http')
-                        ? Image.network(artist.imagePath!, fit: BoxFit.cover)
-                        : Image.asset(artist.imagePath!, fit: BoxFit.cover))
+                        ? Image.network(
+                            artist.imagePath!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, _) => const Icon(Icons.person_rounded, size: 28),
+                          )
+                        : Image.asset(
+                            artist.imagePath!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, _) => const Icon(Icons.person_rounded, size: 28),
+                          ))
                     : const Icon(Icons.person_rounded, size: 28),
               ),
             ),
@@ -4155,6 +4196,25 @@ class _ProfileTabView extends StatelessWidget {
                 children: [
                   _buildAccountProfileTile(context),
                   _buildPremiumTile(context),
+                  // ── Admin-only: Download Analytics ──
+                  if (authController.isStaff)
+                    _buildSettingsTile(
+                      context,
+                      icon: Icons.bar_chart_rounded,
+                      iconColor: const Color(0xFF001199),
+                      title: 'Download Analytics',
+                      subtitle: 'View per-user download stats',
+                      onTap: () {
+                        Navigator.of(context).push(
+                          PageRouteBuilder(
+                            pageBuilder: (_, a, __) => const AdminDownloadsScreen(),
+                            transitionsBuilder: (_, a, __, child) =>
+                                FadeTransition(opacity: a, child: child),
+                            transitionDuration: const Duration(milliseconds: 350),
+                          ),
+                        );
+                      },
+                    ),
                   _buildSettingsTile(
                     context,
                     icon: authController.isAuthenticated ? Icons.logout_rounded : Icons.login_rounded,
@@ -5178,8 +5238,16 @@ void _showAlbumSongsBottomSheet(
                           color: coverBgColor,
                           child: album.artworkPath != null && album.artworkPath!.isNotEmpty
                               ? (album.artworkPath!.startsWith('http')
-                                  ? Image.network(album.artworkPath!, fit: BoxFit.cover)
-                                  : Image.asset(album.artworkPath!, fit: BoxFit.cover))
+                                  ? Image.network(
+                                      album.artworkPath!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (ctx, err, _) => const Icon(Icons.album_rounded, size: 36),
+                                    )
+                                  : Image.asset(
+                                      album.artworkPath!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (ctx, err, _) => const Icon(Icons.album_rounded, size: 36),
+                                    ))
                               : const Icon(Icons.album_rounded, size: 36),
                         ),
                       ),
@@ -5355,8 +5423,16 @@ void _showArtistSongsBottomSheet(
                           color: coverBgColor,
                           child: artist.imagePath != null && artist.imagePath!.isNotEmpty
                               ? (artist.imagePath!.startsWith('http')
-                                  ? Image.network(artist.imagePath!, fit: BoxFit.cover)
-                                  : Image.asset(artist.imagePath!, fit: BoxFit.cover))
+                                  ? Image.network(
+                                      artist.imagePath!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (ctx, err, _) => const Icon(Icons.person_rounded, size: 36),
+                                    )
+                                  : Image.asset(
+                                      artist.imagePath!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (ctx, err, _) => const Icon(Icons.person_rounded, size: 36),
+                                    ))
                               : const Icon(Icons.person_rounded, size: 36),
                         ),
                       ),

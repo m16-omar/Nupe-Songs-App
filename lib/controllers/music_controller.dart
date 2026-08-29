@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../core/constants/api_constants.dart';
 import '../models/song_model.dart';
 import '../models/album_model.dart';
 import '../models/artist_model.dart';
@@ -53,12 +54,17 @@ class MusicController extends ChangeNotifier {
   }
 
   Future<void> logPlay(String songId) async {
-    final port = _activePort ?? await _findActivePort();
-    if (port == null) return;
-    final host = _activeHost ?? (Platform.isAndroid ? '10.0.2.2' : '127.0.0.1');
-    
     try {
-      final uri = Uri.parse('http://$host:$port/api/songs/$songId/play/');
+      final Uri uri;
+      if (ApiConstants.useLiveBackend) {
+        uri = Uri.parse('${ApiConstants.baseUrl}/songs/$songId/play/');
+      } else {
+        final port = _activePort ?? await _findActivePort();
+        if (port == null) return;
+        final host = _activeHost ?? (Platform.isAndroid ? '10.0.2.2' : '127.0.0.1');
+        uri = Uri.parse('http://$host:$port/api/songs/$songId/play/');
+      }
+      
       final response = await http.post(uri);
       if (kDebugMode) {
         print('Logged play for song $songId: status ${response.statusCode}');
@@ -79,12 +85,17 @@ class MusicController extends ChangeNotifier {
   }
 
   Future<void> logDownload(String songId) async {
-    final port = _activePort ?? await _findActivePort();
-    if (port == null) return;
-    final host = _activeHost ?? (Platform.isAndroid ? '10.0.2.2' : '127.0.0.1');
-    
     try {
-      final uri = Uri.parse('http://$host:$port/api/songs/$songId/download/');
+      final Uri uri;
+      if (ApiConstants.useLiveBackend) {
+        uri = Uri.parse('${ApiConstants.baseUrl}/songs/$songId/download/');
+      } else {
+        final port = _activePort ?? await _findActivePort();
+        if (port == null) return;
+        final host = _activeHost ?? (Platform.isAndroid ? '10.0.2.2' : '127.0.0.1');
+        uri = Uri.parse('http://$host:$port/api/songs/$songId/download/');
+      }
+      
       final response = await http.post(uri);
       if (kDebugMode) {
         print('Logged download for song $songId: status ${response.statusCode}');
@@ -106,8 +117,19 @@ class MusicController extends ChangeNotifier {
 
   String _normalizeUrl(String? url, String host, int port) {
     if (url == null || url.isEmpty) return '';
-    final regExp = RegExp(r'https?://(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?');
-    return url.replaceAllMapped(regExp, (match) => 'http://$host:$port');
+    if (ApiConstants.useLiveBackend) {
+      if (url.startsWith('/')) {
+        return 'https://nupe-songs-backend1.onrender.com$url';
+      }
+      final regExp = RegExp(r'https?://(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?');
+      return url.replaceAllMapped(regExp, (match) => 'https://nupe-songs-backend1.onrender.com');
+    } else {
+      if (url.startsWith('/')) {
+        return 'http://$host:$port$url';
+      }
+      final regExp = RegExp(r'https?://(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?');
+      return url.replaceAllMapped(regExp, (match) => 'http://$host:$port');
+    }
   }
 
   Future<int?> _findActivePort() async {
@@ -153,23 +175,20 @@ class MusicController extends ChangeNotifier {
     }
 
     try {
-      final port = await _findActivePort();
-      _activePort = port;
-      if (port != null) {
-        final host = Platform.isAndroid ? '10.0.2.2' : '127.0.0.1';
-        _activeHost = host;
+      if (ApiConstants.useLiveBackend) {
+        final songsUri = Uri.parse('${ApiConstants.baseUrl}/songs');
+        final albumsUri = Uri.parse('${ApiConstants.baseUrl}/albums');
+        final artistsUri = Uri.parse('${ApiConstants.baseUrl}/artists');
+
         if (kDebugMode) {
-          print('Found active backend port: $port. Fetching content using host: $host');
+          print('Fetching music from live backend: ${ApiConstants.baseUrl}');
         }
-        final songsUri = Uri.parse('http://$host:$port/api/songs');
-        final albumsUri = Uri.parse('http://$host:$port/api/albums');
-        final artistsUri = Uri.parse('http://$host:$port/api/artists');
 
         final responses = await Future.wait([
           http.get(songsUri),
           http.get(albumsUri),
           http.get(artistsUri),
-        ]).timeout(const Duration(seconds: 15));
+        ]).timeout(const Duration(seconds: 30));
 
         if (responses[0].statusCode == 200 &&
             responses[1].statusCode == 200 &&
@@ -177,6 +196,9 @@ class MusicController extends ChangeNotifier {
           final List<dynamic> songsJson = jsonDecode(responses[0].body);
           final List<dynamic> albumsJson = jsonDecode(responses[1].body);
           final List<dynamic> artistsJson = jsonDecode(responses[2].body);
+
+          final String host = '';
+          final int port = 0;
 
           // Parse Artists
           final List<ArtistModel> backendArtists = [];
@@ -248,7 +270,7 @@ class MusicController extends ChangeNotifier {
           }).toList();
 
           if (kDebugMode) {
-            print('Successfully loaded music data from backend: ${_songs.length} songs, ${_albums.length} albums, ${_artists.length} artists.');
+            print('Successfully loaded music data from live backend: ${_songs.length} songs, ${_albums.length} albums, ${_artists.length} artists.');
           }
 
           _isLoading = false;
@@ -256,8 +278,112 @@ class MusicController extends ChangeNotifier {
           return;
         }
       } else {
-        if (kDebugMode) {
-          print('No active backend port found. Using local fallback.');
+        final port = await _findActivePort();
+        _activePort = port;
+        if (port != null) {
+          final host = Platform.isAndroid ? '10.0.2.2' : '127.0.0.1';
+          _activeHost = host;
+          if (kDebugMode) {
+            print('Found active backend port: $port. Fetching content using host: $host');
+          }
+          final songsUri = Uri.parse('http://$host:$port/api/songs');
+          final albumsUri = Uri.parse('http://$host:$port/api/albums');
+          final artistsUri = Uri.parse('http://$host:$port/api/artists');
+
+          final responses = await Future.wait([
+            http.get(songsUri),
+            http.get(albumsUri),
+            http.get(artistsUri),
+          ]).timeout(const Duration(seconds: 15));
+
+          if (responses[0].statusCode == 200 &&
+              responses[1].statusCode == 200 &&
+              responses[2].statusCode == 200) {
+            final List<dynamic> songsJson = jsonDecode(responses[0].body);
+            final List<dynamic> albumsJson = jsonDecode(responses[1].body);
+            final List<dynamic> artistsJson = jsonDecode(responses[2].body);
+
+            // Parse Artists
+            final List<ArtistModel> backendArtists = [];
+            for (final art in artistsJson) {
+              backendArtists.add(ArtistModel(
+                id: art['id'].toString(),
+                name: art['name'] as String,
+                imagePath: _normalizeUrl(art['image'] as String?, host, port),
+                songIds: [],
+                albumIds: [],
+              ));
+            }
+
+            // Parse Albums
+            final List<AlbumModel> backendAlbums = [];
+            for (final alb in albumsJson) {
+              final artistObj = alb['artist'];
+              final artistName = artistObj != null ? artistObj['name'] as String : 'Unknown Artist';
+              final List<String> songIds = [];
+              if (alb['songs'] != null) {
+                for (final s in alb['songs']) {
+                  songIds.add(s['id'].toString());
+                }
+              }
+              backendAlbums.add(AlbumModel(
+                id: alb['id'].toString(),
+                name: alb['name'] as String,
+                artist: artistName,
+                artworkPath: _normalizeUrl(alb['artwork'] as String?, host, port),
+                releaseYear: alb['release_year'] as int?,
+                songIds: songIds,
+              ));
+            }
+
+            // Parse Songs
+            final List<SongModel> backendSongs = [];
+            for (final s in songsJson) {
+              final artistObj = s['artist'];
+              final artistName = artistObj != null ? artistObj['name'] as String : 'Unknown Artist';
+              final albumObj = s['album'];
+              final albumName = albumObj != null ? albumObj['name'] as String : 'Single';
+              final path = _normalizeUrl(s['stream_url'] as String? ?? s['audio_file'] as String? ?? '', host, port);
+              final duration = s['duration_ms'] as int? ?? 180000;
+              backendSongs.add(SongModel(
+                id: s['id'].toString(),
+                title: s['title'] as String,
+                artist: artistName,
+                album: albumName,
+                path: path,
+                duration: duration,
+                artworkPath: _normalizeUrl(s['artwork_url'] as String?, host, port),
+                isFavorite: s['is_favorited'] as bool? ?? false,
+                lyrics: s['lyrics'] as String?,
+              ));
+            }
+
+            _songs = backendSongs;
+            _albums = backendAlbums.map((album) {
+              final songsOfAlbum = _songs.where((s) => s.album.toLowerCase() == album.name.toLowerCase()).map((s) => s.id).toList();
+              return album.copyWith(songIds: songsOfAlbum);
+            }).toList();
+            _artists = backendArtists.map((artist) {
+              final songsOfArtist = _songs.where((s) => s.artist.toLowerCase() == artist.name.toLowerCase()).map((s) => s.id).toList();
+              final albumsOfArtist = _albums.where((a) => a.artist.toLowerCase() == artist.name.toLowerCase()).map((a) => a.id).toList();
+              return artist.copyWith(
+                songIds: songsOfArtist,
+                albumIds: albumsOfArtist,
+              );
+            }).toList();
+
+            if (kDebugMode) {
+              print('Successfully loaded music data from backend: ${_songs.length} songs, ${_albums.length} albums, ${_artists.length} artists.');
+            }
+
+            _isLoading = false;
+            notifyListeners();
+            return;
+          }
+        } else {
+          if (kDebugMode) {
+            print('No active backend port found. Using local fallback.');
+          }
         }
       }
     } catch (e) {

@@ -14,7 +14,8 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -28,7 +29,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -52,7 +54,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       errorMessage = result.$2;
     } else {
       final result = await authController.signup(
-        _nameController.text,
+        _firstNameController.text,
+        _lastNameController.text,
         _emailController.text,
         _passwordController.text,
       );
@@ -338,17 +341,35 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                   child: Column(
                                     children: [
                                       if (!_isLogin) ...[
+                                        // Surname row
                                         _buildTextField(
-                                          controller: _nameController,
-                                          label: "Full Name",
-                                          hint: "Enter your name",
+                                          controller: _lastNameController,
+                                          label: "Surname",
+                                          hint: "Enter your surname",
+                                          icon: Icons.badge_outlined,
+                                          isDark: isDark,
+                                          textColor: textColor,
+                                          subtitleColor: subtitleColor,
+                                          validator: (val) {
+                                            if (val == null || val.trim().isEmpty) {
+                                              return "Please enter your surname";
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                        const SizedBox(height: 16),
+                                        // First Name row
+                                        _buildTextField(
+                                          controller: _firstNameController,
+                                          label: "First Name",
+                                          hint: "Enter your first name",
                                           icon: Icons.person_outline_rounded,
                                           isDark: isDark,
                                           textColor: textColor,
                                           subtitleColor: subtitleColor,
                                           validator: (val) {
                                             if (val == null || val.trim().isEmpty) {
-                                              return "Please enter your name";
+                                              return "Please enter your first name";
                                             }
                                             return null;
                                           },
