@@ -117,23 +117,74 @@ class MusicController extends ChangeNotifier {
 
   String _normalizeUrl(String? url, String host, int port) {
     if (url == null || url.isEmpty) return '';
-    if (ApiConstants.useLiveBackend) {
-      if (url.startsWith('/')) {
-        return 'https://nupe-songs-backend1.onrender.com$url';
+    String normalized = url.trim();
+
+    // 1. Unwrap duplicated Cloudinary / HTTP prefixes (e.g., https://.../image/upload/https:/...)
+    while (normalized.contains('http', 10)) {
+      final lastHttpIndex = normalized.lastIndexOf('http');
+      normalized = normalized.substring(lastHttpIndex);
+      if (normalized.startsWith('https:/') && !normalized.startsWith('https://')) {
+        normalized = normalized.replaceFirst('https:/', 'https://');
+      } else if (normalized.startsWith('http:/') && !normalized.startsWith('http://')) {
+        normalized = normalized.replaceFirst('http:/', 'http://');
       }
-      final regExp = RegExp(r'https?://(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?');
-      return url.replaceAllMapped(regExp, (match) => 'https://nupe-songs-backend1.onrender.com');
-    } else {
-      if (url.startsWith('/')) {
-        return 'http://$host:$port$url';
-      }
-      final regExp = RegExp(r'https?://(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?');
-      return url.replaceAllMapped(regExp, (match) => 'http://$host:$port');
     }
+
+    // 2. Resolve relative or localhost URLs
+    if (ApiConstants.useLiveBackend) {
+      if (normalized.startsWith('/')) {
+        normalized = 'https://nupe-songs-backend1.onrender.com$normalized';
+      } else {
+        final regExp = RegExp(r'https?://(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?');
+        normalized = normalized.replaceAllMapped(regExp, (match) => 'https://nupe-songs-backend1.onrender.com');
+      }
+    } else {
+      if (normalized.startsWith('/')) {
+        normalized = 'http://$host:$port$normalized';
+      } else {
+        final regExp = RegExp(r'https?://(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?');
+        normalized = normalized.replaceAllMapped(regExp, (match) => 'http://$host:$port');
+      }
+    }
+
+    // 3. For Cloudinary image/artwork URLs: clean up random hash suffixes and ensure valid image format
+    if (normalized.contains('res.cloudinary.com') && normalized.contains('/image/upload/')) {
+      final uri = Uri.tryParse(normalized);
+      if (uri != null && uri.pathSegments.isNotEmpty) {
+        final pathSegments = List<String>.from(uri.pathSegments);
+        String lastSegment = pathSegments.last;
+        final hasExtension = RegExp(r'\.(jpg|jpeg|png|webp|gif|svg)$', caseSensitive: false).hasMatch(lastSegment);
+        if (!hasExtension) {
+          // Strip random upload hash (e.g. _esyk97, _kbok7r)
+          lastSegment = lastSegment.replaceAll(RegExp(r'_[a-zA-Z0-9]{5,8}$'), '');
+          lastSegment = '$lastSegment.png';
+          pathSegments[pathSegments.length - 1] = lastSegment;
+          normalized = uri.replace(pathSegments: pathSegments).toString();
+        }
+      }
+    }
+
+    return normalized;
   }
 
   String _normalizeAudioUrl(String? url, String host, int port) {
-    String normalized = _normalizeUrl(url, host, port);
+    String normalized = url?.trim() ?? '';
+    if (normalized.isEmpty) return '';
+
+    // Unwrap duplicate prefixes first
+    while (normalized.contains('http', 10)) {
+      final lastHttpIndex = normalized.lastIndexOf('http');
+      normalized = normalized.substring(lastHttpIndex);
+      if (normalized.startsWith('https:/') && !normalized.startsWith('https://')) {
+        normalized = normalized.replaceFirst('https:/', 'https://');
+      } else if (normalized.startsWith('http:/') && !normalized.startsWith('http://')) {
+        normalized = normalized.replaceFirst('http:/', 'http://');
+      }
+    }
+
+    normalized = _normalizeUrl(normalized, host, port);
+
+    // Audio files in Cloudinary must use /video/upload/
     if (normalized.contains('res.cloudinary.com') && normalized.contains('/image/upload/')) {
       normalized = normalized.replaceAll('/image/upload/', '/video/upload/');
     }
@@ -224,7 +275,11 @@ class MusicController extends ChangeNotifier {
           final List<AlbumModel> backendAlbums = [];
           for (final alb in albumsJson) {
             final artistObj = alb['artist'];
-            final artistName = artistObj != null ? artistObj['name'] as String : 'Unknown Artist';
+            final artistName = artistObj != null
+                ? (artistObj is Map
+                    ? (artistObj['name'] as String? ?? 'Unknown Artist')
+                    : artistObj.toString())
+                : 'Unknown Artist';
             final List<String> songIds = [];
             if (alb['songs'] != null) {
               for (final s in alb['songs']) {
@@ -245,9 +300,17 @@ class MusicController extends ChangeNotifier {
           final List<SongModel> backendSongs = [];
           for (final s in songsJson) {
             final artistObj = s['artist'];
-            final artistName = artistObj != null ? artistObj['name'] as String : 'Unknown Artist';
+            final artistName = artistObj != null
+                ? (artistObj is Map
+                    ? (artistObj['name'] as String? ?? 'Unknown Artist')
+                    : artistObj.toString())
+                : 'Unknown Artist';
             final albumObj = s['album'];
-            final albumName = albumObj != null ? albumObj['name'] as String : 'Single';
+            final albumName = albumObj != null
+                ? (albumObj is Map
+                    ? (albumObj['name'] as String? ?? 'Single')
+                    : albumObj.toString())
+                : 'Single';
             final path = _normalizeAudioUrl(s['stream_url'] as String? ?? s['audio_file'] as String? ?? '', host, port);
             final duration = s['duration_ms'] as int? ?? 180000;
             backendSongs.add(SongModel(
@@ -327,7 +390,11 @@ class MusicController extends ChangeNotifier {
             final List<AlbumModel> backendAlbums = [];
             for (final alb in albumsJson) {
               final artistObj = alb['artist'];
-              final artistName = artistObj != null ? artistObj['name'] as String : 'Unknown Artist';
+              final artistName = artistObj != null
+                  ? (artistObj is Map
+                      ? (artistObj['name'] as String? ?? 'Unknown Artist')
+                      : artistObj.toString())
+                  : 'Unknown Artist';
               final List<String> songIds = [];
               if (alb['songs'] != null) {
                 for (final s in alb['songs']) {
@@ -348,9 +415,17 @@ class MusicController extends ChangeNotifier {
             final List<SongModel> backendSongs = [];
             for (final s in songsJson) {
               final artistObj = s['artist'];
-              final artistName = artistObj != null ? artistObj['name'] as String : 'Unknown Artist';
+              final artistName = artistObj != null
+                  ? (artistObj is Map
+                      ? (artistObj['name'] as String? ?? 'Unknown Artist')
+                      : artistObj.toString())
+                  : 'Unknown Artist';
               final albumObj = s['album'];
-              final albumName = albumObj != null ? albumObj['name'] as String : 'Single';
+              final albumName = albumObj != null
+                  ? (albumObj is Map
+                      ? (albumObj['name'] as String? ?? 'Single')
+                      : albumObj.toString())
+                  : 'Single';
               final path = _normalizeAudioUrl(s['stream_url'] as String? ?? s['audio_file'] as String? ?? '', host, port);
               final duration = s['duration_ms'] as int? ?? 180000;
               backendSongs.add(SongModel(
