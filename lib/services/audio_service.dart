@@ -70,10 +70,14 @@ class MyAudioHandler extends auds.BaseAudioHandler with auds.QueueHandler {
   }
 
   Future<void> playPath(String path) async {
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-      await _player.play(UrlSource(path));
+    String finalPath = path.trim();
+    if (finalPath.contains('res.cloudinary.com') && finalPath.contains('/image/upload/')) {
+      finalPath = finalPath.replaceAll('/image/upload/', '/video/upload/');
+    }
+    if (finalPath.startsWith('http://') || finalPath.startsWith('https://')) {
+      await _player.play(UrlSource(finalPath));
     } else {
-      await _player.play(AssetSource(path));
+      await _player.play(AssetSource(finalPath));
     }
   }
 
@@ -85,17 +89,20 @@ class MyAudioHandler extends auds.BaseAudioHandler with auds.QueueHandler {
     required int durationMs,
     String? artworkPath,
   }) {
+    Uri? validArtUri;
+    if (artworkPath != null && artworkPath.isNotEmpty) {
+      if (artworkPath.startsWith('http://') || artworkPath.startsWith('https://') || artworkPath.startsWith('file://')) {
+        validArtUri = Uri.tryParse(artworkPath);
+      }
+    }
+
     mediaItem.add(auds.MediaItem(
       id: id,
       album: album,
       title: title,
       artist: artist,
       duration: Duration(milliseconds: durationMs),
-      artUri: artworkPath != null
-          ? (artworkPath.startsWith('http')
-              ? Uri.parse(artworkPath)
-              : Uri.parse('asset:///$artworkPath'))
-          : null,
+      artUri: validArtUri,
     ));
   }
 

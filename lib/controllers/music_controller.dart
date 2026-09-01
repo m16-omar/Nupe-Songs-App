@@ -132,6 +132,14 @@ class MusicController extends ChangeNotifier {
     }
   }
 
+  String _normalizeAudioUrl(String? url, String host, int port) {
+    String normalized = _normalizeUrl(url, host, port);
+    if (normalized.contains('res.cloudinary.com') && normalized.contains('/image/upload/')) {
+      normalized = normalized.replaceAll('/image/upload/', '/video/upload/');
+    }
+    return normalized;
+  }
+
   Future<int?> _findActivePort() async {
     final host = Platform.isAndroid ? '10.0.2.2' : '127.0.0.1';
     final ports = [8000];
@@ -240,7 +248,7 @@ class MusicController extends ChangeNotifier {
             final artistName = artistObj != null ? artistObj['name'] as String : 'Unknown Artist';
             final albumObj = s['album'];
             final albumName = albumObj != null ? albumObj['name'] as String : 'Single';
-            final path = _normalizeUrl(s['stream_url'] as String? ?? s['audio_file'] as String? ?? '', host, port);
+            final path = _normalizeAudioUrl(s['stream_url'] as String? ?? s['audio_file'] as String? ?? '', host, port);
             final duration = s['duration_ms'] as int? ?? 180000;
             backendSongs.add(SongModel(
               id: s['id'].toString(),
@@ -343,7 +351,7 @@ class MusicController extends ChangeNotifier {
               final artistName = artistObj != null ? artistObj['name'] as String : 'Unknown Artist';
               final albumObj = s['album'];
               final albumName = albumObj != null ? albumObj['name'] as String : 'Single';
-              final path = _normalizeUrl(s['stream_url'] as String? ?? s['audio_file'] as String? ?? '', host, port);
+              final path = _normalizeAudioUrl(s['stream_url'] as String? ?? s['audio_file'] as String? ?? '', host, port);
               final duration = s['duration_ms'] as int? ?? 180000;
               backendSongs.add(SongModel(
                 id: s['id'].toString(),

@@ -24,7 +24,7 @@ class SongModel {
     required this.title,
     required this.artist,
     required this.album,
-    required this.path,
+    required String path,
     required this.duration,
     String? artworkPath,
     this.isFavorite = false,
@@ -32,7 +32,10 @@ class SongModel {
     this.streamCount = 0,
     this.downloadCount = 0,
     this.genre,
-  }) : artworkPath = (artworkPath == null || artworkPath.isEmpty)
+  })  : path = (path.contains('res.cloudinary.com') && path.contains('/image/upload/'))
+            ? path.replaceAll('/image/upload/', '/video/upload/')
+            : path,
+        artworkPath = (artworkPath == null || artworkPath.isEmpty)
             ? 'assets/images/app_logo.jpeg'
             : artworkPath;
 
